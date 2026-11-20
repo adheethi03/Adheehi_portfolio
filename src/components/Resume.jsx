@@ -3,8 +3,9 @@ import { portfolioData } from '../data/portfolioData';
 
 export default function Resume() {
   const ref = useRef(null);
-  const [pdfAvailable, setPdfAvailable] = useState(true);
-  const resumeUrl = portfolioData.personal.resume;
+  const frameWrapRef = useRef(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const resumeUrl = portfolioData.personal.resume || '/resume.pdf';
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -15,13 +16,29 @@ export default function Resume() {
     return () => observer.disconnect();
   }, []);
 
-  // Detect if PDF is accessible
+  // Track fullscreen changes (e.g. if user presses Esc key)
   useEffect(() => {
-    if (!resumeUrl || resumeUrl === '#') { setPdfAvailable(false); return; }
-    fetch(resumeUrl, { method: 'HEAD' })
-      .then(r => { if (!r.ok) setPdfAvailable(false); })
-      .catch(() => setPdfAvailable(false));
-  }, [resumeUrl]);
+    const handleFullscreenChange = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  // Handle native Fullscreen mode on the preview frame
+  const handleToggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      if (frameWrapRef.current?.requestFullscreen) {
+        frameWrapRef.current.requestFullscreen().catch((err) => {
+          console.error('Fullscreen request error:', err);
+        });
+      }
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      }
+    }
+  };
 
   return (
     <section id="resume" className="section" ref={ref}>
@@ -33,43 +50,35 @@ export default function Resume() {
           {/* Left: description + actions */}
           <div className="reveal">
             <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', lineHeight: '1.8', marginBottom: '12px' }}>
-              A concise overview of my education, technical skills, and professional experience as a
+              A concise overview of my academic credentials, full-stack competencies, and internship experience as a
               Computer Science Engineering graduate and MERN stack developer.
             </p>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', lineHeight: '1.7' }}>
-              The document is updated regularly. If you'd like a copy or want to discuss an opportunity,
-              feel free to reach out directly.
+              You can preview the document in the embedded viewer, view it fullscreen, or download a direct PDF copy below.
             </p>
 
             <div className="resume-ctas">
-              {pdfAvailable && resumeUrl !== '#' ? (
-                <>
-                  <a href={resumeUrl} download className="btn btn-solid">
-                    Download Resume
-                  </a>
-                  <a href={resumeUrl} target="_blank" rel="noopener noreferrer" className="btn">
-                    Open in New Tab
-                  </a>
-                </>
-              ) : (
-                <>
-                  <a href={`mailto:${portfolioData.personal.email}?subject=Resume Request`} className="btn btn-solid">
-                    Request via Email
-                  </a>
-                  <a href={portfolioData.personal.linkedin} target="_blank" rel="noopener noreferrer" className="btn">
-                    View LinkedIn Profile
-                  </a>
-                </>
-              )}
+              <a href={resumeUrl} download="Adheethi_KS_Resume.pdf" className="btn btn-solid">
+                Download Resume
+              </a>
+              <button
+                type="button"
+                onClick={handleToggleFullscreen}
+                className="btn"
+                style={{ cursor: 'pointer' }}
+              >
+                {isFullscreen ? 'Exit Fullscreen' : '⛶ Fullscreen'}
+              </button>
             </div>
 
             {/* Quick facts */}
             <div style={{ marginTop: '40px', display: 'flex', flexDirection: 'column', gap: '0' }}>
               {[
-                { label: 'Degree',     value: 'B.Tech — Computer Science Engineering' },
-                { label: 'Stack',      value: 'MERN (React, Node, Express, MongoDB)' },
-                { label: 'Internship', value: 'MERN Stack Developer — Camerin Folks' },
-                { label: 'Available',  value: 'Open to opportunities' },
+                { label: 'Degree',     value: 'B.Tech — Computer Science Engineering (2022–2026)' },
+                { label: 'College',    value: 'MES College of Engineering, Kuttipuram' },
+                { label: 'Stack',      value: 'MERN (React.js, Node.js, Express.js, MongoDB)' },
+                { label: 'Internship', value: 'MERN Stack Developer Intern — Camerin Folks' },
+                { label: 'Status',     value: 'Available for full-time opportunities' },
               ].map(item => (
                 <div key={item.label} style={{
                   display: 'flex', justifyContent: 'space-between', gap: '20px',
@@ -86,31 +95,43 @@ export default function Resume() {
             </div>
           </div>
 
-          {/* Right: PDF viewer */}
+          {/* Right: PDF Viewer Frame */}
           <div className="reveal" style={{ transitionDelay: '100ms' }}>
-            <div className="resume-frame-wrap">
-              {pdfAvailable && resumeUrl !== '#' ? (
-                <iframe
-                  className="resume-frame"
-                  src={`${resumeUrl}#toolbar=0&navpanes=0`}
-                  title="Resume Preview"
-                  onError={() => setPdfAvailable(false)}
-                />
-              ) : (
-                <div className="resume-no-preview">
-                  <div className="big-label">Resume</div>
-                  <p>
-                    Place your resume PDF at <code style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem', background: 'var(--bg)', padding: '2px 6px', borderRadius: '3px' }}>public/resume.pdf</code> to enable the preview.
-                  </p>
-                  <a href={`mailto:${portfolioData.personal.email}?subject=Resume Request`} className="btn" style={{ marginTop: '8px' }}>
-                    Request a Copy
-                  </a>
-                </div>
-              )}
+            <div
+              ref={frameWrapRef}
+              className="resume-frame-wrap"
+              style={{
+                position: 'relative',
+                borderRadius: '6px',
+                border: '1px solid rgba(199, 123, 120, 0.25)',
+                boxShadow: '0 10px 30px rgba(0, 0, 0, 0.5)',
+                background: '#121212',
+                overflow: 'hidden',
+                height: isFullscreen ? '100vh' : 'auto'
+              }}
+            >
+              <iframe
+                className="resume-frame"
+                src={`${resumeUrl}#toolbar=1&navpanes=0`}
+                title="Adheethi K.S. Resume Preview"
+                style={{
+                  width: '100%',
+                  height: isFullscreen ? '100vh' : '620px',
+                  border: 'none',
+                  display: 'block'
+                }}
+              />
             </div>
-            <p style={{ marginTop: '10px', fontSize: '0.75rem', color: 'var(--text-dim)', fontFamily: 'var(--font-mono)', letterSpacing: '0.5px' }}>
-              PDF preview — open in new tab for full view
-            </p>
+
+            <div style={{
+              marginTop: '12px',
+              fontSize: '0.75rem',
+              color: 'var(--text-dim)',
+              fontFamily: 'var(--font-mono)',
+              letterSpacing: '0.5px'
+            }}>
+              <span>PDF preview • Scroll inside to view page 2</span>
+            </div>
           </div>
         </div>
       </div>
